@@ -1135,6 +1135,8 @@ export type FeeRecord = {
   studentId: string
   studentName: string
   studentEmail: string
+  /** Grade + division, e.g. "Grade 1A" — null if the student isn't placed in a class yet. */
+  className?: string | null
   status: 'Paid' | 'Unpaid' | 'Partial'
   paidAmount: number
   paidDate?: string | null
@@ -1469,6 +1471,8 @@ export type TransactionRecord = {
   type: TransactionType
   /** Human-readable name of what was paid for — the fee title, item name, or class name. */
   label: string
+  /** The fee record / item record / class id this transaction paid for, if any. */
+  referenceId?: string | null
   receiptNumber: string
   paymentMode: PaymentMode
   notes?: string | null
@@ -1481,6 +1485,20 @@ export async function getMyTransactions(type?: TransactionType): Promise<Transac
     return await apiRequest<TransactionRecord[]>(`/transactions/me${query}`)
   } catch (error) {
     console.error('Error fetching my transactions:', error)
+    return []
+  }
+}
+
+/** Admin: payment/receipt history, optionally filtered by student and/or type. */
+export async function getTransactions(studentEmail?: string, type?: TransactionType): Promise<TransactionRecord[]> {
+  try {
+    const params = new URLSearchParams()
+    if (studentEmail) params.set('studentEmail', studentEmail)
+    if (type) params.set('type', type)
+    const query = params.toString() ? `?${params.toString()}` : ''
+    return await apiRequest<TransactionRecord[]>(`/transactions${query}`)
+  } catch (error) {
+    console.error('Error fetching transactions:', error)
     return []
   }
 }
