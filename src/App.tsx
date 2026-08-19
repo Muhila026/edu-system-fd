@@ -53,7 +53,7 @@ interface UserData {
 function normalizeRole(role: string): string {
   const r = (role || '').toString().trim().toLowerCase()
   if (r === 'super_admin' || r === 'administrator') return 'admin'
-  if (r === 'admin' || r === 'teacher' || r === 'student' || r === 'parent') return r
+  if (r === 'admin' || r === 'teacher' || r === 'student' || r === 'parent' || r === 'staff') return r
   return 'student'
 }
 
@@ -188,6 +188,28 @@ const App: React.FC = () => {
         return <ItemsManagement />
       case 'Settings':
         return <Settings />
+      case 'Profile':
+        return <AdminProfile />
+      default:
+        return <AdminDashboard />
+    }
+  }
+
+  /** Staff shares Admin's pages, minus Settings — which page(s) render is further gated by
+   *  the Super Admin's toggles in Settings (AdminSidebar hides pages Staff isn't allowed;
+   *  the backend rejects the underlying API calls either way). */
+  const renderStaffPage = () => {
+    switch (selectedPage) {
+      case 'Dashboard':
+        return <AdminDashboard onSelectPage={handlePageSelect} />
+      case 'User Management':
+        return <UserManagement />
+      case 'Subjects':
+        return <SchemaManagement />
+      case 'Class Details':
+        return <ClassDetails />
+      case 'Payments':
+        return <ItemsManagement />
       case 'Profile':
         return <AdminProfile />
       default:
@@ -339,6 +361,25 @@ const App: React.FC = () => {
             >
               <Box sx={{ maxWidth: 1400, margin: '0 auto' }}>
                 {renderAdminPage()}
+              </Box>
+            </Box>
+          </>
+        )
+
+      case 'staff':
+        return (
+          <>
+            <AdminSidebar selectedPage={selectedPage} onSelectPage={handlePageSelect} />
+            <Box
+              component="main"
+              sx={{
+                flexGrow: 1,
+                p: 4,
+                backgroundColor: '#f9fafb',
+              }}
+            >
+              <Box sx={{ maxWidth: 1400, margin: '0 auto' }}>
+                {renderStaffPage()}
               </Box>
             </Box>
           </>

@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import {
   Drawer,
   List,
@@ -23,7 +23,7 @@ import {
   Grade as GradeIcon,
 } from '@mui/icons-material'
 import { motion } from 'framer-motion'
-import { getCurrentUser } from '../lib/api'
+import { getCurrentUser, getMyPermissions } from '../lib/api'
 import { useSchoolBranding } from '../hooks/useSchoolBranding'
 
 const drawerWidth = 280
@@ -65,6 +65,12 @@ const ParentSidebar: React.FC<ParentSidebarProps> = ({ selectedPage, onSelectPag
   const user = getCurrentUser()
   const displayName = user.name || 'Parent'
 
+  const [allowedPages, setAllowedPages] = useState<string[] | null>(null)
+  useEffect(() => {
+    getMyPermissions().then((p) => setAllowedPages(p.allPages ? null : p.pages))
+  }, [])
+  const items = allowedPages ? menuItems.filter((item) => allowedPages.includes(item.text)) : menuItems
+
   return (
     <Drawer
       variant="permanent"
@@ -103,7 +109,7 @@ const ParentSidebar: React.FC<ParentSidebarProps> = ({ selectedPage, onSelectPag
       <Divider sx={{ borderColor: '#E5E7EB', mx: 2, flexShrink: 0 }} />
 
       <List sx={{ px: 1.5, py: 2, flex: 1, overflow: 'auto', minHeight: 0 }}>
-        {menuItems.map((item, index) => {
+        {items.map((item, index) => {
           const isSelected = selectedPage === item.text
           return (
             <motion.div key={item.text} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: index * 0.03 }}>

@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import {
   Drawer,
   List,
@@ -23,7 +23,7 @@ import {
   Settings as SettingsIcon,
 } from '@mui/icons-material'
 import { motion } from 'framer-motion'
-import { getCurrentUser } from '../lib/api'
+import { getCurrentUser, getMyPermissions } from '../lib/api'
 import { useSchoolBranding } from '../hooks/useSchoolBranding'
 
 const drawerWidth = 280
@@ -69,7 +69,16 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ selectedPage, onSelectPage 
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(' ')
 
-  const items = [...menuItems, { text: 'Settings', icon: <SettingsIcon />, tooltip: 'School branding and role access' }]
+  // Admin/Super Admin always see everything (allPages: true -> allowedPages stays null).
+  // Staff only sees the pages a Super Admin has toggled on, and never sees Settings.
+  const [allowedPages, setAllowedPages] = useState<string[] | null>(null)
+  useEffect(() => {
+    getMyPermissions().then((p) => setAllowedPages(p.allPages ? null : p.pages))
+  }, [])
+  const filteredMenuItems = allowedPages ? menuItems.filter((item) => allowedPages.includes(item.text)) : menuItems
+  const items = allowedPages
+    ? filteredMenuItems
+    : [...filteredMenuItems, { text: 'Settings', icon: <SettingsIcon />, tooltip: 'School branding and role access' }]
 
   return (
     <Drawer

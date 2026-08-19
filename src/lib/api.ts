@@ -179,6 +179,31 @@ export function resolveUploadUrl(path: string): string {
   return `${API_ORIGIN}${path}`
 }
 
+/** Downloads a super-admin database export (.sql file) as an attachment via the browser. */
+export async function downloadDatabaseExport(kind: 'data' | 'structure'): Promise<void> {
+  const token = getAuthToken()
+  const response = await fetch(`${API_BASE_URL}/superadmin/export/${kind}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+  })
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: 'Export failed' }))
+    throw new Error(error?.detail || 'Export failed')
+  }
+  const disposition = response.headers.get('Content-Disposition') || ''
+  const filenameMatch = disposition.match(/filename="([^"]+)"/)
+  const filename = filenameMatch ? filenameMatch[1] : `${kind}_export.sql`
+
+  const blob = await response.blob()
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(url)
+}
+
 /** Like apiRequest, but for multipart/form-data (file upload) bodies — no Content-Type override, the browser sets the boundary. */
 async function apiRequestFormData<T>(endpoint: string, formData: FormData, method: string = 'POST'): Promise<T> {
   const token = getAuthToken()
@@ -523,7 +548,7 @@ export type AdminUser = {
   displayId?: string
   name: string
   email: string
-  role: 'Student' | 'Teacher' | 'Admin' | 'Super Admin' | 'Parent'
+  role: 'Student' | 'Teacher' | 'Admin' | 'Super Admin' | 'Staff' | 'Parent'
   status: 'Active' | 'Inactive'
   joinedDate: string
 }
@@ -1429,22 +1454,6 @@ export async function getItemRecords(studentEmail?: string): Promise<ItemRecord[
   return apiRequest<ItemRecord[]>(`/items/records${q}`)
 }
 
-/** Admin: issue an item to a student. */
-export async function issueItemToStudent(item: {
-  item: string
-  quantity: number
-  studentEmail: string
-}): Promise<ItemRecord[]> {
-  return apiRequest<ItemRecord[]>('/items/records', {
-    method: 'POST',
-    body: JSON.stringify({
-      item: item.item,
-      quantity: item.quantity,
-      studentEmail: item.studentEmail,
-    }),
-  })
-}
-
 /** Admin: fix the quantity on an already-issued item record. */
 export async function updateItemRecord(id: string, quantity: number): Promise<ItemRecord[]> {
   return apiRequest<ItemRecord[]>(`/items/records/${encodeURIComponent(id)}`, {
@@ -1573,6 +1582,15 @@ export async function getInventoryItems(): Promise<InventoryItemOption[]> {
   }
 }
 
+/** Admin: define a new simple purchasable item — just a name and price, no bundling. */
+export async function createItem(body: {
+  name: string
+  price: number
+  stockQuantity?: number
+}): Promise<InventoryItemOption> {
+  return apiRequest<InventoryItemOption>('/items/catalog', { method: 'POST', body: JSON.stringify(body) })
+}
+
 /** Admin: define a new purchasable package — a named bundle of existing item types at one price. */
 export async function createPackage(body: {
   name: string
@@ -1669,7 +1687,8 @@ export type AfterSchoolClass = {
   name: AfterSchoolClassName
   description?: string | null
   schedule?: string | null
-  level: 'O/L' | 'A/L' | 'All'
+  /** "All", "O/L", "A/L", or a specific grade name (e.g. "Grade 5") from the Grades catalog. */
+  level: string
   admissionFee: number
 }
 
