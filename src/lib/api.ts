@@ -1492,6 +1492,10 @@ export const PAYMENT_MODES: PaymentMode[] = ['Cash', 'Card', 'Online Transfer']
 
 export type TransactionRecord = {
   id: string
+  /** Present on the admin report (GET /transactions); omitted from a student's own history. */
+  studentId?: string
+  studentName?: string
+  studentEmail?: string
   amount: number
   paymentDate: string
   type: TransactionType
