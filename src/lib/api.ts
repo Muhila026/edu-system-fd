@@ -1138,7 +1138,10 @@ export type FeeStructure = {
   title: string
   description?: string | null
   amount: number
-  dueDate?: string | null
+  /** When the payment window opens — optional, informational only. */
+  dueDateStart?: string | null
+  /** The actual due-by date. */
+  dueDateEnd?: string | null
   /** Grade this fee applies to — null means school-wide (e.g. a general Admission or Event fee). */
   gradeId?: string | null
   gradeName?: string | null
@@ -1155,7 +1158,8 @@ export type FeeRecord = {
   feeType: FeeType
   title: string
   amount: number
-  dueDate?: string | null
+  dueDateStart?: string | null
+  dueDateEnd?: string | null
   gradeName?: string | null
   studentId: string
   studentName: string
@@ -1210,12 +1214,25 @@ export async function assignFeeToClass(params: {
   })
 }
 
-/** Admin: record a payment against a fee record. `paidAmount` is the new absolute total paid. */
-export async function recordFeePayment(recordId: string, paidAmount: number, paymentMode?: PaymentMode): Promise<FeeRecord[]> {
-  return apiRequest<FeeRecord[]>(`/fees/records/${encodeURIComponent(recordId)}/pay`, {
-    method: 'POST',
-    body: JSON.stringify({ paidAmount, paymentMode }),
-  })
+/** Admin: record a payment against a fee record. `paidAmount` is the new absolute total paid.
+ *  `proof`, if provided, is an optional receipt/proof image (e.g. a photo of a bank slip). */
+export async function recordFeePayment(
+  recordId: string,
+  paidAmount: number,
+  paymentMode?: PaymentMode,
+  proof?: File
+): Promise<FeeRecord[]> {
+  if (!proof) {
+    return apiRequest<FeeRecord[]>(`/fees/records/${encodeURIComponent(recordId)}/pay`, {
+      method: 'POST',
+      body: JSON.stringify({ paidAmount, paymentMode }),
+    })
+  }
+  const formData = new FormData()
+  formData.append('paidAmount', String(paidAmount))
+  if (paymentMode) formData.append('paymentMode', paymentMode)
+  formData.append('proof', proof)
+  return apiRequestFormData<FeeRecord[]>(`/fees/records/${encodeURIComponent(recordId)}/pay`, formData)
 }
 
 /** Student: my own fee records. */
@@ -1485,6 +1502,8 @@ export type TransactionRecord = {
   receiptNumber: string
   paymentMode: PaymentMode
   notes?: string | null
+  /** URL of an optional receipt/proof image attached when this payment was recorded. */
+  proofImageUrl?: string | null
 }
 
 /** Student: my own payment/receipt history, optionally filtered by type. */
@@ -1523,11 +1542,13 @@ export type ManualPaymentReceipt = {
     paymentMode: PaymentMode
     type: TransactionType
     collectedBy: string
+    proofImageUrl?: string | null
   }
   detail: Record<string, unknown>
 }
 
-/** Admin/Super Admin: record cash collected at the counter for a class installment or item purchase. */
+/** Admin/Super Admin: record cash collected at the counter for a class installment or item purchase.
+ *  `proof`, if provided, is an optional receipt/proof image. */
 export async function recordManualPayment(payload: {
   studentEmail: string
   type: TransactionType
@@ -1536,38 +1557,21 @@ export async function recordManualPayment(payload: {
   quantity?: number
   paymentMode?: PaymentMode
   notes?: string
+  proof?: File
 }): Promise<ManualPaymentReceipt> {
-  return apiRequest<ManualPaymentReceipt>('/payments/manual', {
-    method: 'POST',
-    body: JSON.stringify(payload),
+  const { proof, ...rest } = payload
+  if (!proof) {
+    return apiRequest<ManualPaymentReceipt>('/payments/manual', {
+      method: 'POST',
+      body: JSON.stringify(rest),
+    })
+  }
+  const formData = new FormData()
+  Object.entries(rest).forEach(([key, value]) => {
+    if (value != null) formData.append(key, String(value))
   })
-}
-
-// ==================== Payment Requests (student/parent submits proof, admin approves) ====================
-
-export type PaymentRequestStatus = 'Pending' | 'Approved' | 'Rejected'
-
-export type PaymentRequestRecord = {
-  id: string
-  studentId: string
-  studentName: string
-  studentEmail: string
-  submittedByName: string
-  submittedByRole: string
-  type: TransactionType
-  referenceId: string
-  label: string
-  quantity: number | null
-  amount: number
-  paymentMode: PaymentMode
-  receiptNumber: string | null
-  proofImageUrl: string
-  note: string | null
-  status: PaymentRequestStatus
-  reviewedByName: string | null
-  reviewNote: string | null
-  reviewedAt: string | null
-  createdAt: string
+  formData.append('proof', proof)
+  return apiRequestFormData<ManualPaymentReceipt>('/payments/manual', formData)
 }
 
 export type InventoryItemOption = { id: string; name: string; price: number; isPackage: boolean; packageItems: string[] }
@@ -1609,73 +1613,6 @@ export async function updatePackage(
   return apiRequest<InventoryItemOption>(`/items/packages/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(body) })
 }
 
-/** Student/parent: submit proof of an online transfer for a fee, item, or class payment. */
-export async function submitPaymentRequest(payload: {
-  studentId?: string // required when submitting as a parent
-  type: TransactionType
-  referenceId: string
-  amount: number
-  quantity?: number
-  receiptNumber?: string
-  note?: string
-  proofImage: File
-}): Promise<PaymentRequestRecord> {
-  const formData = new FormData()
-  if (payload.studentId) formData.append('studentId', payload.studentId)
-  formData.append('type', payload.type)
-  formData.append('referenceId', payload.referenceId)
-  formData.append('amount', String(payload.amount))
-  if (payload.quantity) formData.append('quantity', String(payload.quantity))
-  if (payload.receiptNumber) formData.append('receiptNumber', payload.receiptNumber)
-  if (payload.note) formData.append('note', payload.note)
-  formData.append('proof', payload.proofImage)
-  return apiRequestFormData<PaymentRequestRecord>('/payment-requests', formData)
-}
-
-/** Student: my own submitted payment requests. */
-export async function getMyPaymentRequests(): Promise<PaymentRequestRecord[]> {
-  try {
-    return await apiRequest<PaymentRequestRecord[]>('/payment-requests/me')
-  } catch (error) {
-    console.error('Error fetching my payment requests:', error)
-    return []
-  }
-}
-
-/** Parent: submitted payment requests for one of their children. */
-export async function getChildPaymentRequests(studentId: string): Promise<PaymentRequestRecord[]> {
-  try {
-    return await apiRequest<PaymentRequestRecord[]>(`/parents/children/${encodeURIComponent(studentId)}/payment-requests`)
-  } catch (error) {
-    console.error('Error fetching child payment requests:', error)
-    return []
-  }
-}
-
-/** Admin/Super Admin: the review queue, optionally filtered by status. */
-export async function getPaymentRequests(status?: PaymentRequestStatus): Promise<PaymentRequestRecord[]> {
-  try {
-    const query = status ? `?status=${encodeURIComponent(status)}` : ''
-    return await apiRequest<PaymentRequestRecord[]>(`/payment-requests${query}`)
-  } catch (error) {
-    console.error('Error fetching payment requests:', error)
-    return []
-  }
-}
-
-export async function approvePaymentRequest(id: string, paymentMode: PaymentMode): Promise<PaymentRequestRecord> {
-  return apiRequest<PaymentRequestRecord>(`/payment-requests/${encodeURIComponent(id)}/approve`, {
-    method: 'PUT',
-    body: JSON.stringify({ paymentMode }),
-  })
-}
-
-export async function rejectPaymentRequest(id: string, reviewNote?: string): Promise<PaymentRequestRecord> {
-  return apiRequest<PaymentRequestRecord>(`/payment-requests/${encodeURIComponent(id)}/reject`, {
-    method: 'PUT',
-    body: JSON.stringify({ reviewNote }),
-  })
-}
 
 // ==================== After-School Special Classes ====================
 
@@ -1773,7 +1710,8 @@ export type ChildFeeRecord = {
   amount: number
   paidAmount: number
   status: 'Paid' | 'Unpaid' | 'Partial'
-  dueDate: string | null
+  dueDateStart: string | null
+  dueDateEnd: string | null
 }
 
 export type ChildItemRecord = {

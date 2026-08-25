@@ -32,7 +32,6 @@ import ParentDashboard from './pages/parent/Dashboard'
 import ParentFees from './pages/parent/Fees'
 import ParentItems from './pages/parent/Items'
 import ParentReceipts from './pages/parent/Receipts'
-import ParentPaymentRequests from './pages/parent/PaymentRequests'
 import ParentMarks from './pages/parent/Marks'
 import ParentProfile from './pages/parent/Profile'
 
@@ -225,8 +224,6 @@ const App: React.FC = () => {
         return <ParentItems />
       case 'Receipts':
         return <ParentReceipts />
-      case 'Payment Requests':
-        return <ParentPaymentRequests />
       case 'Marks':
         return <ParentMarks />
       case 'Profile':
