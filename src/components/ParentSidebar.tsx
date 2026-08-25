@@ -19,7 +19,6 @@ import {
   Payments as PaymentsIcon,
   Inventory2 as Inventory2Icon,
   Receipt as ReceiptIcon,
-  FactCheck as FactCheckIcon,
   Grade as GradeIcon,
 } from '@mui/icons-material'
 import { motion } from 'framer-motion'
@@ -51,7 +50,6 @@ const menuItems: MenuItem[] = [
   { text: 'Fees', icon: <PaymentsIcon />, tooltip: "Your children's fee status" },
   { text: 'Items', icon: <Inventory2Icon />, tooltip: 'Items issued to your children' },
   { text: 'Receipts', icon: <ReceiptIcon />, tooltip: 'Payment receipts' },
-  { text: 'Payment Requests', icon: <FactCheckIcon />, tooltip: 'Your submitted payment requests' },
   { text: 'Marks', icon: <GradeIcon />, tooltip: "Your children's marks" },
 ]
 
